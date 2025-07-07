@@ -1,22 +1,34 @@
 import { createClient } from '@supabase/supabase-js'
-import { createClientComponentClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createBrowserClient, createServerClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// For client components
+// For client components only
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// For client components with auth
+// For client components (recommended)
 export const createSupabaseClient = () => {
-  return createClientComponentClient()
+  return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
-// For server components
-export const createSupabaseServerClient = () => {
-  const cookieStore = cookies()
-  return createServerComponentClient({ cookies: () => cookieStore })
+// For server components only - import this in a separate file
+export const createSupabaseServerClient = async () => {
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options)
+        })
+      },
+    },
+  })
 }
 
 // Database types

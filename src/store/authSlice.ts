@@ -14,7 +14,6 @@ const initialState: AuthState = {
   error: null,
 }
 
-// Async thunks
 export const signIn = createAsyncThunk(
   'auth/signIn',
   async ({ email, password }: { email: string; password: string }) => {
@@ -41,6 +40,32 @@ export const signUp = createAsyncThunk(
     })
     if (error) throw error
     return data.user
+  }
+)
+
+// Google OAuth thunks (used for both signup and signin)
+export const signInWithGoogle = createAsyncThunk(
+  'auth/signInWithGoogle',
+  async (_, { rejectWithValue }) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      })
+      
+      if (error) throw error
+      
+      // The actual user data will be handled in the callback
+      return data
+    } catch (error: any) {
+      return rejectWithValue(error.message)
+    }
   }
 )
 
@@ -93,6 +118,20 @@ const authSlice = createSlice({
       .addCase(signUp.rejected, (state, action) => {
         state.loading = false
         state.error = action.error.message || 'Sign up failed'
+      })
+
+      // Google OAuth
+      .addCase(signInWithGoogle.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(signInWithGoogle.fulfilled, (state) => {
+        state.loading = false
+        // User will be set in callback
+      })
+      .addCase(signInWithGoogle.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload as string || 'Google sign in failed'
       })
       
       // Sign Out

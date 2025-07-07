@@ -1,64 +1,57 @@
 'use client'
 import { useState, useRef, useCallback } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { Mic, MicOff, Square, Play, Pause } from 'lucide-react'
-import { processVoiceExpense } from '../store/expenseSlice'
-import { RootState, AppDispatch } from '../store'
+import { useDispatch } from 'react-redux'
+import { AppDispatch } from '@/store'
+import { addExpense } from '@/store/expenseSlice'
+import { Mic, Square, Play, Pause } from 'lucide-react'
+import { VoiceRecorderProps } from '@/lib/types'
 
-interface VoiceRecorderProps {
-  userId: string
-  onExpenseCreated?: () => void
-}
-
-export default function VoiceRecorder({ userId, onExpenseCreated }: VoiceRecorderProps) {
+export default function VoiceRecorder({ onTranscriptionComplete }: VoiceRecorderProps) {
   const dispatch = useDispatch<AppDispatch>()
-  const { isProcessingVoice } = useSelector((state: RootState) => state.expense)
-  
   const [isRecording, setIsRecording] = useState(false)
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [transcription, setTranscription] = useState<string>('')
+  const [error, setError] = useState<string>('')
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const audioChunksRef = useRef<Blob[]>([])
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const startRecording = useCallback(async () => {
     try {
+      setError('')
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
       
+      const mediaRecorder = new MediaRecorder(stream)
       mediaRecorderRef.current = mediaRecorder
-      chunksRef.current = []
+      
+      audioChunksRef.current = []
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          chunksRef.current.push(event.data)
+          audioChunksRef.current.push(event.data)
         }
       }
       
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/wav' })
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
         const url = URL.createObjectURL(audioBlob)
         setAudioUrl(url)
         
-        // Stop all tracks
+        // Process the audio for transcription
+        await processAudio(audioBlob)
+        
+        // Stop all tracks to release microphone
         stream.getTracks().forEach(track => track.stop())
       }
       
       mediaRecorder.start()
       setIsRecording(true)
-      setRecordingTime(0)
-      
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1)
-      }, 1000)
-      
-    } catch (error) {
-      console.error('Error starting recording:', error)
-      alert('Failed to start recording. Please check microphone permissions.')
+    } catch (err) {
+      console.error('Error starting recording:', err)
+      setError('Failed to access microphone. Please check permissions.')
     }
   }, [])
 
@@ -66,13 +59,46 @@ export default function VoiceRecorder({ userId, onExpenseCreated }: VoiceRecorde
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop()
       setIsRecording(false)
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
     }
   }, [isRecording])
+
+  const processAudio = async (audioBlob: Blob) => {
+    setIsProcessing(true)
+    setError('')
+    
+    try {
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'recording.wav')
+      
+      const response = await fetch('/api/voice/transcribe', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to process audio')
+      }
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setTranscription(data.transcription)
+        onTranscriptionComplete?.(data.transcription)
+        
+        // If we have expense data, automatically add it
+        if (data.expense) {
+          dispatch(addExpense(data.expense))
+        }
+      } else {
+        setError(data.error || 'Failed to process audio')
+      }
+    } catch (err) {
+      console.error('Error processing audio:', err)
+      setError('Failed to process recording. Please try again.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   const playRecording = useCallback(() => {
     if (audioUrl && audioRef.current) {
@@ -86,135 +112,96 @@ export default function VoiceRecorder({ userId, onExpenseCreated }: VoiceRecorde
     }
   }, [audioUrl, isPlaying])
 
-  const processRecording = useCallback(async () => {
-    if (!audioUrl) return
-    
-    try {
-      // Convert audio URL to blob
-      const response = await fetch(audioUrl)
-      const audioBlob = await response.blob()
-      
-      // Dispatch voice processing
-      const result = await dispatch(processVoiceExpense({ audioBlob, userId }))
-      
-      if (processVoiceExpense.fulfilled.match(result)) {
-        // Success - clear recording
-        setAudioUrl(null)
-        setRecordingTime(0)
-        onExpenseCreated?.()
-      }
-    } catch (error) {
-      console.error('Error processing recording:', error)
+  const clearRecording = useCallback(() => {
+    setAudioUrl(null)
+    setTranscription('')
+    setError('')
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
     }
-  }, [audioUrl, userId, dispatch, onExpenseCreated])
-
-  const discardRecording = useCallback(() => {
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl)
-      setAudioUrl(null)
-      setRecordingTime(0)
-    }
-  }, [audioUrl])
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
+    setIsPlaying(false)
+  }, [])
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Voice Recording</h3>
+    <div className="bg-white p-6 rounded-lg shadow-md space-y-4">
+      <h3 className="text-lg font-semibold">Voice Expense Entry</h3>
       
-      {/* Recording Status */}
-      <div className="flex items-center justify-center space-x-4">
-        {isRecording && (
-          <div className="flex items-center space-x-2 text-red-600">
-            <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-            <span className="font-mono text-lg">{formatTime(recordingTime)}</span>
-          </div>
-        )}
-        
-        {audioUrl && !isRecording && (
-          <div className="text-gray-600">
-            <span>Recording ready: {formatTime(recordingTime)}</span>
-          </div>
-        )}
-      </div>
-
       {/* Recording Controls */}
-      <div className="flex justify-center space-x-4">
-        {!isRecording && !audioUrl && (
+      <div className="flex items-center justify-center space-x-4">
+        {!isRecording ? (
           <button
             onClick={startRecording}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={isProcessing}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white p-4 rounded-full transition-colors"
+            title="Start Recording"
           >
-            <Mic className="w-5 h-5" />
-            <span>Start Recording</span>
+            <Mic className="w-6 h-6" />
           </button>
-        )}
-
-        {isRecording && (
+        ) : (
           <button
             onClick={stopRecording}
-            className="flex items-center space-x-2 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
+            className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors animate-pulse"
+            title="Stop Recording"
           >
-            <Square className="w-5 h-5" />
-            <span>Stop Recording</span>
+            <Square className="w-6 h-6" />
           </button>
         )}
-
+        
         {audioUrl && (
           <>
             <button
               onClick={playRecording}
-              className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+              disabled={isProcessing}
+              className="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white p-3 rounded-full transition-colors"
+              title={isPlaying ? "Pause" : "Play Recording"}
             >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              <span>{isPlaying ? 'Pause' : 'Play'}</span>
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
-
+            
             <button
-              onClick={processRecording}
-              disabled={isProcessingVoice}
-              className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={clearRecording}
+              disabled={isProcessing}
+              className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors"
             >
-              {isProcessingVoice ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <span>Add Expense</span>
-              )}
-            </button>
-
-            <button
-              onClick={discardRecording}
-              className="flex items-center space-x-2 bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition-colors"
-            >
-              <MicOff className="w-4 h-4" />
-              <span>Discard</span>
+              Clear
             </button>
           </>
         )}
       </div>
-      
-      {/* Processing Status */}
-      {isProcessingVoice && (
+
+      {/* Recording Status */}
+      {isRecording && (
         <div className="text-center">
-          <div className="inline-flex items-center space-x-2 text-blue-600">
-            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span>Processing voice and extracting expense details...</span>
+          <div className="flex items-center justify-center space-x-2">
+            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+            <span className="text-red-600 font-medium">Recording...</span>
           </div>
         </div>
       )}
 
-      {/* Instructions */}
-      {!isRecording && !audioUrl && (
-        <div className="text-sm text-gray-500 text-center space-y-1">
-          <p>Click &quot;Start Recording&quot; and say your expense.</p>
-          <p>Example: &quot;I spent $15 on lunch at McDonald&apos;s&quot;</p>
+      {/* Processing Status */}
+      {isProcessing && (
+        <div className="text-center">
+          <div className="flex items-center justify-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <span className="text-blue-600 font-medium">Processing audio...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-3">
+          <p className="text-red-600 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Transcription Display */}
+      {transcription && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+          <h4 className="font-medium text-green-800 mb-2">Transcription:</h4>
+          <p className="text-green-700">{transcription}</p>
         </div>
       )}
 
@@ -224,9 +211,15 @@ export default function VoiceRecorder({ userId, onExpenseCreated }: VoiceRecorde
           ref={audioRef}
           src={audioUrl}
           onEnded={() => setIsPlaying(false)}
-          style={{ display: 'none' }}
+          className="hidden"
         />
       )}
+      
+      {/* Instructions */}
+      <div className="text-sm text-gray-600 text-center">
+        <p>Click the microphone to record an expense.</p>
+        <p className="text-xs mt-1">Example: &quot;I spent $12.50 on lunch at McDonald&apos;s&quot;</p>
+      </div>
     </div>
   )
 }
