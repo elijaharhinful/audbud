@@ -13,24 +13,22 @@ export const createSupabaseClient = () => {
 }
 
 // For server components only - import this in a separate file
-export const createSupabaseServerClient = async () => {
-  const { cookies } = await import('next/headers')
-  const cookieStore = await cookies()
+export const createSupabaseServerClient = () => {
+  const { cookies } = require('next/headers')
   
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        return cookieStore.getAll()
+        return cookies().getAll()
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options)
+          cookies().set(name, value, options)
         })
       },
     },
   })
 }
-
 // Database types
 export type Database = {
   public: {

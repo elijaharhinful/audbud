@@ -1,4 +1,3 @@
-// src/app/api/voice/transcribe/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createSupabaseServerClient } from '@/lib/supabase'
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     if (expenseData) {
       // Get user from session (you'll need to implement session handling)
-      const supabase = createSupabaseServerClient()
+      const supabase = await createSupabaseServerClient()
       const { data: { user }, error: authError } = await supabase.auth.getUser()
 
       if (authError || !user) {
@@ -57,12 +56,11 @@ export async function POST(request: NextRequest) {
       const { data: expense, error: dbError } = await supabase
         .from('expenses')
         .insert({
-          user_id: user.id,
+          userId: user.id,
           amount: expenseData.amount,
           category: expenseData.category,
           description: expenseData.description,
           date: expenseData.date,
-          is_voice_entry: true
         })
         .select()
         .single()
