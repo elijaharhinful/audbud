@@ -3,12 +3,28 @@ export interface Budget {
   category: string
   amount: number
   spent?: number
+  userId: string
 }
 
 export interface BudgetChartProps {
   budgets: Budget[]
   categorySpending: Record<string, number>
   type?: 'bar' | 'pie'
+}
+
+export interface ChartsProps {
+  budgetVsSpent: Array<{
+    category: string
+    budget: number
+    spent: number
+    remaining: number
+  }>
+  pieData: Array<{
+    name: string
+    value: number
+  }>
+  isDark: boolean
+  accentColor: string
 }
 
 export interface Expense {
@@ -20,7 +36,7 @@ export interface Expense {
   isVoiceEntry?: boolean
   userId: string
   createdAt: string
-  updatedAt: string
+  updatedAt?: string
 }
 
 export interface ExpenseListProps {
@@ -33,4 +49,33 @@ export interface ExpenseListProps {
 
 export interface VoiceRecorderProps {
   onTranscriptionComplete?: (text: string) => void
+  isDark: boolean
+  accentColor: string
+}
+
+export interface StatsCardsProps {
+  totalBudget: number
+  totalSpent: number
+  remainingBudget: number
+  budgetHealthPercentage: number
+  isDark: boolean
+  accentColor: string
+}
+
+export interface HeaderProps {
+  isDark: boolean
+  accentColor: string
+  toggleTheme: () => void
+  setAccentColor: (color: string) => void
+}
+
+export interface RecentExpensesProps {
+  expenses: Expense[]
+  isDark: boolean
+  accentColor: string
+}
+
+export interface QuickActionsProps {
+  isDark: boolean
+  accentColor: string
 }

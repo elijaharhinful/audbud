@@ -90,3 +90,5 @@ export const accentColors = [
   { name: 'Red', value: '#ef4444', tailwind: 'red' },
   { name: 'Indigo', value: '#6366f1', tailwind: 'indigo' }
 ]
+
+export const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658']
