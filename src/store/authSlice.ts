@@ -1,17 +1,19 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 interface AuthState {
   user: User | null
   loading: boolean
   error: string | null
+  updateLoading: boolean
 }
 
 const initialState: AuthState = {
   user: null,
   loading: false,
   error: null,
+  updateLoading: false,
 }
 
 export const signIn = createAsyncThunk(
@@ -79,6 +81,37 @@ export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async () =
   return user
 })
 
+// Update user profile
+export const updateUserProfile = createAsyncThunk(
+  'auth/updateUserProfile',
+  async (profileData: {
+    name: string
+    location: string
+    salary: string
+    familySize: string
+    avatarUrl: string
+  }) => {
+    const response = await fetch('/api/profile', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(profileData),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to update profile')
+    }
+
+    const data = await response.json()
+    
+    // Refresh the user data from Supabase to get updated metadata
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  }
+)
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -142,6 +175,20 @@ const authSlice = createSlice({
       // Get Current User
       .addCase(getCurrentUser.fulfilled, (state, action) => {
         state.user = action.payload
+      })
+
+      // Update User Profile
+      .addCase(updateUserProfile.pending, (state) => {
+        state.updateLoading = true
+        state.error = null
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.updateLoading = false
+        state.user = action.payload
+      })
+      .addCase(updateUserProfile.rejected, (state, action) => {
+        state.updateLoading = false
+        state.error = action.error.message || 'Failed to update profile'
       })
   },
 })

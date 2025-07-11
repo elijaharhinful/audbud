@@ -3,7 +3,7 @@ import { Sun, Moon, Palette, Bell } from 'lucide-react'
 import { HeaderProps } from '@/lib/types'
 import { accentColors } from '../providers/ThemeProvider'
 
-export default function Header({ isDark, accentColor, toggleTheme, setAccentColor }: HeaderProps) {
+export default function Header({ isDark, accentColor, toggleTheme, setAccentColor, title, subtitle }: HeaderProps) {
   const [showColorPicker, setShowColorPicker] = useState(false)
 
   return (
@@ -11,10 +11,10 @@ export default function Header({ isDark, accentColor, toggleTheme, setAccentColo
       <div className="flex items-center justify-between">
         <div>
           <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Dashboard
+            {title}
           </h2>
           <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            Welcome back! Here's your financial overview.
+            {subtitle}
           </p>
         </div>
         

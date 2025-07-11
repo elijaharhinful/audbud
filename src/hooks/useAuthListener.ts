@@ -1,7 +1,7 @@
 'use client'
 import { useEffect } from 'react'
 import { useDispatch } from 'react-redux'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import { setUser } from '@/store/authSlice'
 import { AppDispatch } from '@/store'
 

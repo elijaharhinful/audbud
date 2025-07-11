@@ -30,7 +30,7 @@ export default function BudgetChart({ budgets, categorySpending, type = 'bar' }:
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, value, budget }) => `${name}: $${value.toFixed(2)} / $${budget.toFixed(2)}`}
+                label={({ name, value, budget }) => `${name}: $${(value || 0).toFixed(2)} / $${budget.toFixed(2)}`}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"

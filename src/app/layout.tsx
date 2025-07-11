@@ -4,7 +4,6 @@ import "./globals.css";
 import ReduxProvider from '@/components/providers/ReduxProvider'
 import AuthProvider from "@/components/providers/AuthProvider";
 
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

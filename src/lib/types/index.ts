@@ -1,3 +1,5 @@
+import { User } from "@supabase/supabase-js"
+
 export interface Budget {
   id: string
   category: string
@@ -67,6 +69,12 @@ export interface HeaderProps {
   accentColor: string
   toggleTheme: () => void
   setAccentColor: (color: string) => void
+  title: string
+  subtitle: string
+}
+
+export interface FooterProps {
+  isDark: boolean
 }
 
 export interface RecentExpensesProps {
@@ -78,4 +86,12 @@ export interface RecentExpensesProps {
 export interface QuickActionsProps {
   isDark: boolean
   accentColor: string
+}
+
+export interface SidebarProps {
+  isCollapsed: boolean
+  onToggle: () => void
+  isDark: boolean
+  accentColor: string
+  user: User
 }
