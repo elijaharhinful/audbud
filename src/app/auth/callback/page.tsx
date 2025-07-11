@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDispatch } from 'react-redux'
-import { supabase } from '@/lib/supabase/server'
+import { supabase } from '@/lib/supabase/client'
 import { setUser } from '@/store/authSlice'
 import { AppDispatch } from '@/store'
 
